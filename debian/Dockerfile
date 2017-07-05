@@ -1,12 +1,14 @@
-FROM devgeniem/base:debian
+FROM pihvio/base:debian
 
-MAINTAINER Onni Hakala <onni.hakala@geniem.com>
+MAINTAINER Onni Hakala <onni@keksi.io>
 
 # Build Arguments for openresty/nginx
-ARG RESTY_VERSION="1.11.2.1"
-ARG RESTY_OPENSSL_VERSION="1.0.2j"
+ARG RESTY_VERSION="1.11.2.3"
+ARG RESTY_OPENSSL_VERSION="1.0.2k"
 
-ARG PAGESPEED_VERSION="1.11.33.4"
+# Nginx Pagespeed version
+ARG NPS_RELEASE_NUMBER="1.12.34.2"
+ARG NPS_VERSION="${NPS_RELEASE_NUMBER}-stable"
 
 # Fix apt-get and show colors
 ARG DEBIAN_FRONTEND=noninteractive
@@ -49,8 +51,8 @@ ARG RESTY_CONFIG_OPTIONS="\
 
     --without-http_redis_module \
 
-     --user=nginx \
-     --group=nginx \
+    --user=nginx \
+    --group=nginx \
 
     --sbin-path=/usr/sbin \
     --modules-path=/usr/lib/nginx \
@@ -66,48 +68,48 @@ ARG RESTY_CONFIG_OPTIONS="\
     --http-proxy-temp-path=/tmp/nginx/proxy \
     --http-client-body-temp-path=/tmp/nginx/client_body \
 
-    --add-module=/tmp/ngx_http_redis-0.3.7-master \
-    --add-module=/tmp/ngx_pagespeed-${PAGESPEED_VERSION}-beta \
+    --add-module=/tmp/redis-nginx-module-master \
+    --add-module=/tmp/ngx_pagespeed-${NPS_VERSION} \
     --with-openssl=/tmp/openssl-${RESTY_OPENSSL_VERSION} \
     "
 
 
 # These are only needed during the installation
-ARG BUILD_DEPS='build-essential curl libreadline-dev libncurses5-dev libpcre3-dev libgeoip-dev zlib1g-dev ca-certificates'
+ARG BUILD_DEPS='build-essential wget libreadline-dev libncurses5-dev libpcre3-dev libgeoip-dev zlib1g-dev'
+ARG RUNTIME_DEPS='ca-certificates'
 
 # Install base utils
 RUN \
+    set -x && \
     apt-get update && \
-    apt-get -y install $BUILD_DEPS --no-install-recommends && \
+    apt-get -y install $BUILD_DEPS $RUNTIME_DEPS --no-install-recommends && \
 
     cd /tmp/ && \
 
     ### Download Tarballs ###
     # Download PageSpeed
     echo "Downloading PageSpeed..." && \
-    curl -L https://github.com/pagespeed/ngx_pagespeed/archive/v${PAGESPEED_VERSION}-beta.tar.gz | tar -zx && \
-
-    ls -lah && \
+    wget https://github.com/pagespeed/ngx_pagespeed/archive/v${NPS_VERSION}.tar.gz -O - | tar -zx && \
 
     # psol needs to be inside ngx_pagespeed module
     # Download PageSpeed Optimization Library and extract it to nginx source dir
-    cd /tmp/ngx_pagespeed-${PAGESPEED_VERSION}-beta/ && \
+    cd ngx_pagespeed-${NPS_VERSION}/ && \
     echo "Downloading PSOL..." && \
-    curl -L https://dl.google.com/dl/page-speed/psol/${PAGESPEED_VERSION}.tar.gz | tar -zx && \
+    wget https://dl.google.com/dl/page-speed/psol/${NPS_RELEASE_NUMBER}-x64.tar.gz -O - | tar -zx && \
 
     cd /tmp/ && \
 
     # Download OpenSSL
     echo "Downloading OpenSSL..." && \
-    curl -L https://www.openssl.org/source/openssl-${RESTY_OPENSSL_VERSION}.tar.gz | tar -zx && \
+    wget https://www.openssl.org/source/openssl-${RESTY_OPENSSL_VERSION}.tar.gz -O - | tar -zx && \
 
     # Download Openresty bundle
     echo "Downloading openresty..." && \
-    curl -L https://openresty.org/download/openresty-${RESTY_VERSION}.tar.gz | tar -zx && \
+    wget https://openresty.org/download/openresty-${RESTY_VERSION}.tar.gz -O - | tar -zx && \
 
     # Download custom redis module with AUTH support
     echo "Downloading ngx_http_redis..." && \
-    curl -L https://github.com/onnimonni/ngx_http_redis-0.3.7/archive/master.tar.gz | tar -zx && \
+    wget https://github.com/onnimonni/redis-nginx-module/archive/master.tar.gz -O - | tar -zx && \
 
     # Use all cores available in the builds with -j${NPROC} flag
     readonly NPROC=$(grep -c ^processor /proc/cpuinfo 2>/dev/null || 1)  && \
@@ -125,7 +127,8 @@ RUN \
 
     ## Cleanup
     rm -rf /var/lib/apt/lists/* && \
-    apt-get remove --purge -y $BUILD_DEPS $(apt-mark showauto) && \
+    apt-get remove --purge -y $BUILD_DEPS && \
+    apt-get autoremove -y && \
     rm -rf /tmp/* /var/log/apt/*
 
 RUN \

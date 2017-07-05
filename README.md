@@ -1,7 +1,10 @@
 # Docker Nginx Openresty Pagespeed
 This is debian based nginx container for running openresty and pagespeed.
 
-We included custom ngx_http_redis library to support redis with AUTH.
+This includes custom [ngx_http_redis](https://github.com/onnimonni/nginx-redis-module) to support redis instances with AUTH.
+
+## Maintainers
+[Onni Hakala](https://github.com/onnimonni)
 
 ## License
 MIT
